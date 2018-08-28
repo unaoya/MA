@@ -1,0 +1,72 @@
+---
+title: "学力データ分析"
+author: "梅崎直也"
+date: "2018/8/9"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r readdata}
+df <- read.csv('gakuryoku.csv', fileEncoding = 'cp932')
+rownames(df) <- df$区
+df <- df[,-1]
+df
+```
+
+データの相関をみる
+```{r corr}
+cor(df)
+```
+
+```{r plot}
+par(family='Osaka')
+plot(df)
+```
+
+```{r tax}
+tax=df$課税額
+names(tax)=rownames(df)
+tax
+```
+
+主成分分析で可視化してみる。
+```{r pca}
+pr <- prcomp(df, scale = TRUE)
+summary(pr)
+pr
+par(family='Osaka')
+biplot(pr)
+```
+
+クラスタリングしてみる。
+ウォード法による階層的クラスタリング。
+```{r clust}
+dis <- dist(scale(df))
+hcr <- hclust(dis, method="ward.D2")
+par(family='Osaka')
+plot(hcr)
+cluster <- cutree(hcr, k=4)
+result <- data.frame(df, cluster)
+aggregate(.~cluster, result, mean)
+```
+クラスターごとの平均。
+
+主成分バイプロットをクラスターごとに色分け。
+```{r biplot}
+par(family='Osaka')
+plot(pr$x[,1], pr$x[,2], type = 'n')
+text(pr$x[,1], pr$x[,2], labels = rownames(df), col = cluster)
+```
+
+全変数で線形回帰。
+```{r lm}
+LM <- lm(算数平均点~., data=df)
+summary(LM)
+```
+
+```{r lm2}
+LM <- lm(算数平均点~高学歴率, data=df)
+summary(LM)
+```

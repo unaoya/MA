@@ -1,0 +1,105 @@
+---
+title: "cereal"
+author: "梅崎直也"
+date: "2018/8/23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(ggplot2)
+library(tidyr)
+
+d <- read.csv('cereal.txt', sep = ' ', header = F)
+colnames(d) <- c('name', 'mfr', 'type',
+                 'calories', 'protein',
+                 'fat', 'sodium', 'fiber',
+                 'carbo', 'sugars', 'shelf',
+                 'potass', 'vitamins', 'weight',
+                 'cups')
+rownames(d) <- d$name
+d <- d[,-1]
+head(d)
+# sodiumはナトリウム
+# carboは複合糖質、複合炭水化物
+# potassiumはカリウム
+#-1とは？欠測？
+```
+
+```{r}
+summary(d)
+plot(d[,3:14])
+cor(d[,3:14])
+```
+
+#主成分分析して、メーカーごとの違いが見えるか？
+```{r}
+head(d)
+pr <- prcomp(d[,-c(1,2)], scale = T)
+plot(pr$x[,1], pr$x[,2], col = as.numeric(d$mfr))
+summary(pr)
+#text(pr$x[,1], pr$x[,2], labels = rownames(d), col = as.numeric(d$mfr))
+```
+
+#各変数のヒストグラム
+```{r}
+d %>%
+  dplyr::select(-type) %>%
+  gather(key = vars, value = value, -mfr) %>%
+  ggplot(aes(fill = mfr)) +
+  geom_histogram(aes(x = value), bins = 10, position = "identity", alpha = 0.5) +
+  facet_wrap(~vars, scales = "free")
+```
+
+```{r}
+d %>%
+  dplyr::select(-type) %>%
+  gather(key = vars, value = value, -mfr) %>%
+  ggplot(aes(x = mfr)) +
+  geom_boxplot(aes(y = value)) +
+  facet_wrap(~vars, scales = "free")
+```
+
+
+#分類問題、メーカーの予測、決定木とか
+```{r}
+library(rpart)
+library(partykit)
+dt <- rpart(mfr~., data=d)
+plot(as.party(dt))
+table(predict(dt, d, type = "class"), d$mfr)
+```
+
+#ランダムフォレスト
+
+```{r}
+library(randomForest)
+d_rf <- randomForest(mfr~., data=d, importance=T)
+varImpPlot(d_rf)
+table(predict(d_rf, d), d$mfr)
+d$mfr == 'A'
+d2 <- d[-44,]
+summary(d2$mfr)
+d2$mfr <- factor(d2$mfr)
+crs <- c()
+for(i in 1:100){
+  index <- sample(1:76, 10)
+  train <- d2[-index,]
+  test <- d2[index,]
+  
+  d_rf <- randomForest(mfr~., data=train, importance=T)
+  t <- table(predict(d_rf, test), test$mfr)
+  crs[i] <- sum(diag(t))/sum(t)
+}
+mean(crs)
+```
+

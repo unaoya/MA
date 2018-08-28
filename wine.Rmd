@@ -1,0 +1,120 @@
+---
+title: "wine"
+author: "梅崎直也"
+date: "2018/8/23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+dred <- read.csv('winequality-red.csv', sep=';')
+dwhite <- read.csv('winequality-white.csv', sep=';')
+head(dred)
+head(dwhite)
+```
+
+fixed.acidity 酒石酸
+volatile.acidity 揮発酸（酢酸）
+citric.acid クエン酸
+residual.sugar 残留糖
+chlorides 塩化物（塩化ナトリウム）
+free.sulfur.dioxide 遊離SO2
+total.sulfur.dioxide SO2
+density 密度
+pH
+sulphates 硫酸塩
+alcohol
+
+```{r graph}
+hist(dred$quality)
+cor(dred)
+summary(as.factor(dred$quality))
+```
+
+```{r plot}
+dred %>%
+  dplyr::mutate(quality_f = as.factor(quality)) %>%
+  dplyr::select(-quality) %>%
+  gather(key = vars, value = value, -quality_f) %>%
+  ggplot(aes(x = quality_f)) +
+  geom_boxplot(aes(y = value)) +
+  facet_wrap(~vars, scales = "free")
+```
+
+```{r plot2}
+dred %>%
+  dplyr::mutate(quality_f = as.factor(quality)) %>%
+  dplyr::select(-quality) %>%
+  ggplot(aes(x = citric.acid)) +
+  geom_histogram() +
+  facet_wrap(~quality_f)
+```
+
+## 線形回帰
+AICでモデル選択
+```{r lm}
+lm <- lm(quality~., data=dred)
+library(MASS)
+lm.aic <- stepAIC(lm)
+summary(lm.aic)
+pred <- round(predict(lm.aic), digits = 0)
+t <- table(pred, dred$quality)
+sum(diag(t[,-c(1,6)]))/sum(t[,-c(1,6)])
+```
+
+## ランダムフォレスト
+変数の重要度
+```{r rf}
+dred$quality <- as.factor(dred$quality)
+library(randomForest)
+red_rf <- randomForest(quality~., data=dred, importance=T)
+varImpPlot(red_rf)
+
+crs <- c()
+for(i in 1:10){
+  index <- sample(1:1599, 300)
+  train <- dred[-index,]
+  test <- dred[index,]
+  
+  rf <- randomForest(quality~., data=train, importance=T)
+  t <- table(predict(rf, test), test$quality)
+  crs[i] <- sum(diag(t))/sum(t)
+}
+mean(crs)
+```
+
+## SVM
+正則化パラメータ$C$の調整。
+変数選択
+```{r svm}
+library(kernlab)
+crs <- c()
+for(i in 1:10){
+  index <- sample(1:1599, 300)
+  train <- dred[-index,]
+  test <- dred[index,]
+  svm <- ksvm(quality~., data=train, C=10)
+  t <- table(predict(svm, test), test$quality)
+  crs[i] <- sum(diag(t))/sum(t)
+}
+mean(crs)
+
+crs <- c()
+for(i in 1:10){
+  index <- sample(1:1599, 300)
+  train <- dred[-index,]
+  test <- dred[index,]
+  svm <- ksvm(quality ~ volatile.acidity + chlorides + free.sulfur.dioxide + 
+                total.sulfur.dioxide + pH + sulphates + alcohol,
+                data=train, C=10)
+  t <- table(predict(svm, test), test$quality)
+  crs[i] <- sum(diag(t))/sum(t)
+}
+mean(crs)
+```

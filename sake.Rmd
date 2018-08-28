@@ -1,0 +1,48 @@
+---
+title: "酒データ分析"
+author: "梅崎直也"
+date: "2018/8/9"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data}
+df <- read.csv('sakeJ.csv')
+df
+summary(df)
+cor(df[,-1])
+```
+
+消費量の割合を計算（比でやるのは微妙）
+一人当たり量とか望ましい
+
+```{r rate}
+library(dplyr)
+df <- df %>%
+  mutate(sum=Sake+Shochu+Beer+Wine+Whisky) %>%
+  mutate(Sake.r = Sake/sum) %>%
+  mutate(Shochu.r = Shochu/sum) %>%
+  mutate(Beer.r = Beer/sum) %>%
+  mutate(Wine.r = Wine/sum) %>%
+  mutate(Whisky.r = Whisky/sum)
+rownames(df) <- df[,1]
+df <- df[,-1]
+cor(df[,7:11])
+```
+
+割合を変数に用いてクラスタリングする。
+```{r clust}
+dis <- dist(scale(df[,7:11]))
+hcr <- hclust(dis, method="ward.D2")
+par(family='Osaka')
+plot(hcr)
+cluster <- cutree(hcr, k=4)
+cluster
+result <- data.frame(df, cluster)
+aggregate(.~cluster, result, mean)
+plot(df$Sake.r, df$Shochu.r, type='n')
+text(df$Sake.r, df$Shochu.r, labels = rownames(df), col = cluster)
+```
